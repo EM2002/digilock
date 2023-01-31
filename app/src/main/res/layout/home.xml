@@ -2,9 +2,136 @@
 <!-- Frame 1 -->
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/home"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:clipToOutline="true"
     android:background="#000000"
-    />
+    >
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="50px"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="match_parent"
+            android:layout_height="254dp"
+            android:autoSizeMaxTextSize="14sp"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizePresetSizes="14sp"
+            android:autoSizeTextType="uniform"
+            android:background="#232323"
+            android:fontFamily="monospace"
+            android:scrollbars="vertical"
+            android:textAlignment="textStart"
+            android:textColor="#FFFFFF" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="62dp" />
+
+        <RadioGroup
+            android:layout_width="match_parent"
+            android:layout_height="63dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/balanced"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:checked="true"
+                android:minHeight="48dp"
+                android:onClick="onRadioButtonClicked"
+                android:text="Balanced"
+                android:textColor="#009688" />
+
+            <RadioButton
+                android:id="@+id/low_power"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:checked="false"
+                android:minHeight="48dp"
+                android:onClick="onRadioButtonClicked"
+                android:text="Low Power"
+                android:textColor="#009688" />
+
+        </RadioGroup>
+
+        <RadioGroup
+            android:layout_width="match_parent"
+            android:layout_height="166dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/tx_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:text="TX High"
+                android:onClick="onRadioButtonClicked"
+                android:textColor="#009688" />
+
+            <RadioButton
+                android:id="@+id/tx_medium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:checked="false"
+                android:minHeight="48dp"
+                android:text="TX Medium"
+                android:onClick="onRadioButtonClicked"
+                android:textColor="#009688" />
+
+            <RadioButton
+                android:id="@+id/tx_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:checked="false"
+                android:minHeight="48dp"
+                android:text="TX Low"
+                android:onClick="onRadioButtonClicked"
+                android:textColor="#009688" />
+            <RadioButton
+                android:id="@+id/tx_ultra_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false"
+                android:minHeight="48dp"
+                android:text="TX Ultra Low"
+                android:onClick="onRadioButtonClicked"
+                android:textColor="#009688" />
+        </RadioGroup>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="94dp" />
+
+        <TableRow
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" >
+
+            <Space
+                android:layout_width="152dp"
+                android:layout_height="wrap_content" />
+
+            <ImageButton
+                android:id="@+id/fingerprint"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:contentDescription="@android:string/fingerprint_icon_content_description"
+                android:onClick="onButtonClicked"
+                android:src="?android:attr/fingerprintAuthDrawable" />
+
+        </TableRow>
+
+    </LinearLayout>
+
+</RelativeLayout>
