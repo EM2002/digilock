@@ -10,24 +10,29 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 
-class BLEAdvertiser(private val context: Context, private val log: LogView) {
+class BLEAdvertiser() {
+    private lateinit var context: Context
+    private lateinit var log: LogView
     private lateinit var callback: AdvertiseCallback
-    private val advertiser: BluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
-    private var txPower: Int = AdvertiseSettings.ADVERTISE_MODE_LOW_POWER
-    private var advertiseMode: Int = AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
+    private lateinit var advertiser: BluetoothLeAdvertiser
+    private var powerMode: Int = AdvertiseSettings.ADVERTISE_MODE_LOW_POWER
+    private var txPower: Int = AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
+    private var status: Boolean = false;
 
-    fun starAdvertising(txPower: Int?, advertiseMode: Int?) {
-        if (advertiseMode !== null) this.advertiseMode = advertiseMode
-        if (txPower !== null) this.txPower = txPower
-
+    fun build(context: Context, log: LogView) {
+        this.context = context
+        this.log = log
+        advertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
+    }
+    fun starAdvertising(shouldLog: Boolean = true) {
         val settings = (AdvertiseSettings.Builder()
             .setTxPowerLevel(this.txPower)
-            .setAdvertiseMode(this.advertiseMode)).build()
+            .setAdvertiseMode(this.powerMode)).build()
         val data: AdvertiseData = (AdvertiseData.Builder()).setIncludeDeviceName(true).build()
-        this.callback = object: AdvertiseCallback(){
+        this.callback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                 super.onStartSuccess(settingsInEffect)
-                log.logPrepend("Started BLE Advertising", "BLE")
+                if (shouldLog) log.logPrepend("Started BLE Advertising with tx_power $txPower and power_mode $powerMode", "BLE")
             }
         }
 
@@ -37,37 +42,38 @@ class BLEAdvertiser(private val context: Context, private val log: LogView) {
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             log.logPrepend("[!!] BLUETOOTH DISABLED", "BLE")
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             return
         }
 
         advertiser.startAdvertising(settings, data, callback)
+        status = true
     }
 
-    fun stopAdvertising() {
+    fun stopAdvertising(shouldLog: Boolean = true) {
         if (ActivityCompat.checkSelfPermission(
                 this.context,
                 Manifest.permission.BLUETOOTH_ADVERTISE
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             log.logPrepend("[!!] BLUETOOTH DISABLED", "BLE")
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             return
         }
         advertiser.stopAdvertising(this.callback)
-        log.logPrepend("Bluetooth advertising stopped", "BLE")
+        if (shouldLog) log.logPrepend("Bluetooth advertising stopped", "BLE")
+        status = false
+    }
+    fun setPowerMode(powerMode: Int) {
+        this.powerMode = powerMode
+        if (this.status) this.stopAdvertising(false)
+        this.starAdvertising()
+    }
+    fun setTXPower(txPower: Int) {
+        this.txPower = txPower
+        if (this.status) this.stopAdvertising(false)
+        this.starAdvertising()
     }
 
+    fun isAdvertising(): Boolean {
+        return status
+    }
 }
