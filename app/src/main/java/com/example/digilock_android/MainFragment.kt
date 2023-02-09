@@ -18,6 +18,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.example.digilock_android.data.BLEAdvertiser
+import com.example.digilock_android.data.FindBLE
 import com.example.digilock_android.data.LogView
 import java.util.concurrent.Executor
 
@@ -39,6 +40,7 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
 
 
     private val bleAdvertiser: BLEAdvertiser = BLEAdvertiser()
+    private val bleScanner: FindBLE = FindBLE()
 
     private fun checkPermissions() {
         Log.i("location", "checkPermission")
@@ -54,7 +56,9 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
                     android.Manifest.permission.BLUETOOTH,
                     android.Manifest.permission.BLUETOOTH_ADVERTISE,
                     android.Manifest.permission.BLUETOOTH_SCAN,
-                    android.Manifest.permission.BLUETOOTH_ADMIN))
+                    android.Manifest.permission.BLUETOOTH_ADMIN,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION))
                 return
             }
         }
@@ -102,6 +106,7 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
         logView.movementMethod = ScrollingMovementMethod()
         this.log = LogView(logView)
         bleAdvertiser.build(this.requireContext(), this.log)
+        bleScanner.build(this.requireContext(), this.log)
 
         val biometricLoginButton =
             view.findViewById<ImageButton>(R.id.fingerprint)
@@ -119,13 +124,16 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
         view.findViewById<ToggleButton>(R.id.toggleButton).setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 checkPermissions()
+                checkPermissions()
                 log.logPrepend("enabled", "button")
-                bleAdvertiser.starAdvertising()
+                bleScanner.scanLeDevice()
             }
             else {
                 checkPermissions()
+                checkPermissions()
                 log.logPrepend("disabled", "button")
-                if (bleAdvertiser.isAdvertising()) bleAdvertiser.stopAdvertising()
+                //if (bleAdvertiser.isAdvertising()) bleAdvertiser.stopAdvertising()
+                bleScanner.scanLeDevice()
             }
         }
 

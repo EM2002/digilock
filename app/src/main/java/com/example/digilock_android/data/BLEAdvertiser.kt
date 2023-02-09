@@ -17,7 +17,7 @@ class BLEAdvertiser() {
     private lateinit var advertiser: BluetoothLeAdvertiser
     private var powerMode: Int = AdvertiseSettings.ADVERTISE_MODE_LOW_POWER
     private var txPower: Int = AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM
-    private var status: Boolean = false;
+    private var status: Boolean = false
 
     fun build(context: Context, log: LogView) {
         this.context = context
