@@ -1,13 +1,19 @@
 package com.example.digilock_android
 
-import android.bluetooth.le.AdvertiseSettings
+import android.Manifest
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.*
+import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Bundle
+import android.os.Looper
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.RadioButton
 import android.widget.TextView
@@ -15,10 +21,10 @@ import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricPrompt
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.example.digilock_android.data.BLEAdvertiser
-import com.example.digilock_android.data.FindBLE
 import com.example.digilock_android.data.LogView
 import java.util.concurrent.Executor
 
@@ -27,6 +33,10 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
     private lateinit var executor: Executor
     private lateinit var biometricPrompt: BiometricPrompt
     private lateinit var promptInfo: BiometricPrompt.PromptInfo
+    private val handler = android.os.Handler(Looper.getMainLooper())
+    private val DEVICE_MAC: String = "72:7A:11:41:9E:1C"
+    private var unlocked: Boolean = false
+
     private val permissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()
         ) { isGranted: Map<String, Boolean> ->
@@ -38,32 +48,92 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
             }
         }
 
+    private var bleAdvertiser: BLEAdvertiser = BLEAdvertiser()
+    private lateinit var bleScanner: BluetoothLeScanner
+    private var scanning = false
+    private var runThread = true
+    private var testing = false
 
-    private val bleAdvertiser: BLEAdvertiser = BLEAdvertiser()
-    private val bleScanner: FindBLE = FindBLE()
+    private val scanCallback: ScanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult?) {
+            super.onScanResult(callbackType, result)
+            if (result !== null) {
+                val ssid = result.device.address.toString()
+                val rssi = result.rssi
+
+                try {
+                    log.logPrepend( "$ssid | $rssi", "BLE Scan")
+                    if (rssi > -60 && !testing) {
+                        if (!unlocked) biometricPrompt.authenticate(promptInfo)
+                        return
+                    }
+                }
+                catch (e: SecurityException) {Log.e("Exception", "Missing Permissions")}
+            }
+        }
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+            super.onBatchScanResults(results)
+            try { results?.forEach { result -> Log.i("BLE scan", result.device.address.toString()) } }
+            catch (e: SecurityException) {Log.e("Exception", "Missing Permissions")}
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+            Log.e("BLE Scan", "Scan failed")
+        }
+    }
 
     private fun checkPermissions() {
         Log.i("location", "checkPermission")
         when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(this.requireContext(), android.Manifest.permission.BLUETOOTH_CONNECT) -> {
+            ContextCompat.checkSelfPermission(this.requireContext(), Manifest.permission.BLUETOOTH_CONNECT) -> {
                 Log.i("permission", "Granted")
                 return
             }
             else -> {
                 Log.i("permission", "Not granted")
                 permissions.launch(arrayOf(
-                    android.Manifest.permission.BLUETOOTH_CONNECT,
-                    android.Manifest.permission.BLUETOOTH,
-                    android.Manifest.permission.BLUETOOTH_ADVERTISE,
-                    android.Manifest.permission.BLUETOOTH_SCAN,
-                    android.Manifest.permission.BLUETOOTH_ADMIN,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                    android.Manifest.permission.ACCESS_COARSE_LOCATION))
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH,
+                    Manifest.permission.BLUETOOTH_ADVERTISE,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_ADMIN,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION))
                 return
             }
         }
     }
+    private fun scanLeDevice() {
+        if (!runThread) return
+        if (!scanning) { // Stops scanning after a pre-defined scan period.
+            if (ActivityCompat.checkSelfPermission(this.requireContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                log.logPrepend("[!!] BLUETOOTH DISABLED", "BLE")
+                return
+            }
 
+            /*handler.postDelayed({
+                scanning = false
+                bleScanner.stopScan(scanCallback)
+            }, 10000)*/
+            scanning = true
+
+            val filter: ScanFilter = ScanFilter.Builder()
+                .setDeviceAddress(DEVICE_MAC)
+                .build()
+            val scanSettings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
+                .build()
+
+            if(!testing) bleScanner.startScan(MutableList(1) {filter} , scanSettings, scanCallback)
+            else bleScanner.startScan(scanCallback)
+        } else {
+            scanning = false
+            bleScanner.stopScan(scanCallback)
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -74,7 +144,16 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
                 override fun onAuthenticationError(errorCode: Int,
                                                    errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    log.logPrepend("Authentication errored successfully", "Auth")
+                    when(errorCode) {
+                        BiometricPrompt.ERROR_NEGATIVE_BUTTON -> {
+                            view?.setBackgroundColor(Color.parseColor("#FF4CAF50"))
+                            unlocked = true
+                        }
+                        else -> {
+                            log.logPrepend("Authentication errored with code $errorCode", "Auth")
+                            view?.setBackgroundColor(Color.parseColor("#000000"))
+                        }
+                    }
                 }
 
                 override fun onAuthenticationSucceeded(
@@ -87,17 +166,17 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
                     // TODO: Dummy daten einfügen
                     super.onAuthenticationFailed()
                     log.logPrepend("Authentication failed successfully", "Auth")
+                    view?.setBackgroundColor(Color.parseColor("#FFF44336"))
                 }
             })
 
         promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric Identification")
-            .setNegativeButtonText("Cancel")
+            .setNegativeButtonText("Positive")
             .setAllowedAuthenticators(BIOMETRIC_STRONG)
             .build()
 
     }
-
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         // Inflate the layout for this fragment
         val view = inflater.inflate(R.layout.fragment_main, container, false)
@@ -106,12 +185,17 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
         logView.movementMethod = ScrollingMovementMethod()
         this.log = LogView(logView)
         bleAdvertiser.build(this.requireContext(), this.log)
-        bleScanner.build(this.requireContext(), this.log)
+        bleScanner = (this.requireContext().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeScanner
 
         val biometricLoginButton =
             view.findViewById<ImageButton>(R.id.fingerprint)
         biometricLoginButton.setOnClickListener {
             biometricPrompt.authenticate(promptInfo)
+        }
+
+        view.findViewById<Button>(R.id.testing).setOnClickListener {
+            testing = !testing
+            log.logPrepend("Testing: $testing", "State")
         }
 
         view.findViewById<RadioButton>(R.id.balanced).setOnClickListener(this)
@@ -124,19 +208,16 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
         view.findViewById<ToggleButton>(R.id.toggleButton).setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 checkPermissions()
+                log.logPrepend("started scanning", "button")
+                if (runThread) thread.start()
+                else runThread = true
+            } else {
                 checkPermissions()
-                log.logPrepend("enabled", "button")
-                bleScanner.scanLeDevice()
-            }
-            else {
-                checkPermissions()
-                checkPermissions()
-                log.logPrepend("disabled", "button")
+                log.logPrepend("stopped scanning", "button")
                 //if (bleAdvertiser.isAdvertising()) bleAdvertiser.stopAdvertising()
-                bleScanner.scanLeDevice()
+                runThread = false
             }
         }
-
         return view
     }
 
@@ -149,7 +230,7 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
             when (PackageManager.PERMISSION_GRANTED) {
                 ContextCompat.checkSelfPermission(
                     this.requireContext(),
-                    android.Manifest.permission.BLUETOOTH_ADVERTISE
+                    Manifest.permission.BLUETOOTH_ADVERTISE
                 ) -> run {
                     when (view.getId()) {
                         R.id.balanced ->
@@ -190,6 +271,19 @@ class MainFragment : Fragment(R.layout.fragment_main), View.OnClickListener {
                             }
                     }
                 }
+            }
+        }
+    }
+
+    private val thread: Thread = Thread {
+        run {
+            try {
+                while(true) {
+                    Thread.sleep(2000)
+                    if(runThread) handler.post { scanLeDevice() }
+                }
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
             }
         }
     }

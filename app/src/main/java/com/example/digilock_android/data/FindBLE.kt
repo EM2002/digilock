@@ -16,8 +16,7 @@ class FindBLE {
     private lateinit var log: LogView
     private val handler = android.os.Handler(Looper.getMainLooper())
 
-    // Stops scanning after 10 seconds.
-    private val SCAN_PERIOD: Long = 10000
+    private val SCAN_PERIOD: Long = 60000
 
     private val scanCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -26,9 +25,10 @@ class FindBLE {
                 val ssid = result.device.address.toString()
                 val rssi = result.rssi
 
-                if (rssi < -60) return
-
-                try { Log.i("BLE scan", "$ssid | $rssi") }
+                try {
+                    log.logPrepend( "$ssid | $rssi", "BLE Scan")
+                    if (rssi > -60) return
+                }
                 catch (e: SecurityException) {Log.e("Exception", "Missing Permissions")}
             }
         }
@@ -52,30 +52,27 @@ class FindBLE {
     }
 
     fun scanLeDevice() {
-        if (!scanning) { // Stops scanning after a pre-defined scan period.
-            handler.postDelayed({
-                scanning = false
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                    log.logPrepend("[!!] BLUETOOTH DISABLED", "BLE")
-                    return@postDelayed
-                }
-                bleScanner.stopScan(scanCallback)
-            }, SCAN_PERIOD)
-            scanning = true
+        while (scanning) {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                log.logPrepend("[!!] BLUETOOTH DISABLED", "BLE")
+                return
+            }
 
             val filter: ScanFilter = ScanFilter.Builder()
-                .setDeviceAddress("A8:87:B3:B9:1C:61")
+                .setDeviceAddress("7F:D3:C0:27:EF:EE")
                 .build()
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .build()
 
-            bleScanner.startScan(scanCallback)
-        } else {
-            scanning = false
-            bleScanner.stopScan(scanCallback)
+            bleScanner.startScan(MutableList(1) {filter}, scanSettings, scanCallback)
         }
+        bleScanner.stopScan(scanCallback)
+    }
+
+    fun stopScanning() {
+        this.scanning = false
     }
 }
 
